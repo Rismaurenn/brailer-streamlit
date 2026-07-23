@@ -1,7 +1,14 @@
+import os
 from collections import Counter
 
 import cv2
 import numpy as np
+
+# Batasi thread sebelum import ultralytics/torch
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+
 from ultralytics import YOLO
 
 from .convert import parse_xywh_and_class

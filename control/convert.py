@@ -1,4 +1,10 @@
 import json
+import os
+
+# Batasi thread SEBELUM import torch
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+
 import numpy as np
 import torch
 

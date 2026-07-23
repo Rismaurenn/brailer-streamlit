@@ -1,5 +1,11 @@
 import json
+import os
 from pathlib import Path
+
+# Batasi thread SEBELUM import tensorflow/torch
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
 import cv2
 import numpy as np

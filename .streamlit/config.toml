@@ -1,0 +1,13 @@
+[server]
+headless = true
+port = 8501
+address = "0.0.0.0"
+maxUploadSize = 10
+enableCORS = false
+enableXsrfProtection = false
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"

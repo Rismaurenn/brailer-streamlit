@@ -7,10 +7,19 @@ from pathlib import Path
 
 import numpy as np
 
-# Suppress TensorFlow dan OpenCV warnings untuk kurangi noise
-warnings.filterwarnings("ignore", category=FutureWarning)
+# ═══════════════════════════════════════════════════════════════
+# CPU & Memory Optimization - Batasi thread untuk kurangi beban
+# ═══════════════════════════════════════════════════════════════
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["TF_NUM_INTRAOP_THREADS"] = "1"
+os.environ["TF_NUM_INTEROP_THREADS"] = "1"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force CPU-only untuk kurangi memory
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force CPU-only
+
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 BASE_DIR = Path(__file__).resolve().parent
 
