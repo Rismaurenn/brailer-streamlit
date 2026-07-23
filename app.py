@@ -1,27 +1,38 @@
-import streamlit as st
-import cv2
-import numpy as np
+import gc
+import os
+import sys
 import tempfile
+import warnings
 from pathlib import Path
+
+import numpy as np
+
+# Suppress TensorFlow dan OpenCV warnings untuk kurangi noise
+warnings.filterwarnings("ignore", category=FutureWarning)
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force CPU-only untuk kurangi memory
 
 BASE_DIR = Path(__file__).resolve().parent
 
-st.set_page_config(page_title="Sistem Bantu Baca Braille", page_icon="盲", layout="wide")
+
+def _lazy_import_cv2():
+    """Lazy import OpenCV hanya saat dibutuhkan."""
+    import cv2
+    return cv2
 
 
-@st.cache_resource
-def load_classifier():
-    from control.classify import BrailleClassifier
-    return BrailleClassifier(
-        model_path=str(BASE_DIR / "weights" / "cnn_v1.hdf5"),
-        json_path=str(BASE_DIR / "utils" / "class_labels.json"),
-        symbols_path=str(BASE_DIR / "utils" / "braille_symbols.json"),
-        numbers_path=str(BASE_DIR / "utils" / "braille_numbers.json"),
-        yolo_weight=str(BASE_DIR / "weights" / "yolov8_braille.pt"),
-    )
+def _lazy_import_streamlit():
+    """Lazy import Streamlit."""
+    import streamlit as st
+    return st
 
+
+# ═══════════════════════════════════════════════════════════════
+# Fungsi utilitas gambar (menggunakan cv2 via lazy import)
+# ═══════════════════════════════════════════════════════════════
 
 def order_document_points(points):
+    cv2 = _lazy_import_cv2()
     rect = np.zeros((4, 2), dtype="float32")
     points = points.astype("float32")
     point_sum = points.sum(axis=1)
@@ -34,6 +45,7 @@ def order_document_points(points):
 
 
 def four_point_transform(image, points):
+    cv2 = _lazy_import_cv2()
     rect = order_document_points(points)
     top_left, top_right, bottom_right, bottom_left = rect
     width_a = np.linalg.norm(bottom_right - bottom_left)
@@ -53,6 +65,7 @@ def four_point_transform(image, points):
 
 
 def auto_straighten_document(image):
+    cv2 = _lazy_import_cv2()
     if image is None or image.size == 0:
         return image
     original = image.copy()
@@ -108,6 +121,7 @@ def auto_straighten_document(image):
 
 
 def process_image(image_bytes, enable_straightening=True):
+    cv2 = _lazy_import_cv2()
     np_buffer = np.frombuffer(image_bytes, np.uint8)
     image = cv2.imdecode(np_buffer, cv2.IMREAD_COLOR)
     if image is None:
@@ -117,7 +131,37 @@ def process_image(image_bytes, enable_straightening=True):
     return image
 
 
+# ═══════════════════════════════════════════════════════════════
+# Lazy classifier loader dengan cache & memory management
+# ═══════════════════════════════════════════════════════════════
+
+_classifier = None
+
+
+def get_classifier():
+    """Load classifier sekali saja dan cache di memory."""
+    global _classifier
+    if _classifier is None:
+        from control.classify import BrailleClassifier
+        _classifier = BrailleClassifier(
+            model_path=str(BASE_DIR / "weights" / "cnn_v1.hdf5"),
+            json_path=str(BASE_DIR / "utils" / "class_labels.json"),
+            symbols_path=str(BASE_DIR / "utils" / "braille_symbols.json"),
+            numbers_path=str(BASE_DIR / "utils" / "braille_numbers.json"),
+            yolo_weight=str(BASE_DIR / "weights" / "yolov8_braille.pt"),
+        )
+    return _classifier
+
+
 def main():
+    st = _lazy_import_streamlit()
+    cv2 = _lazy_import_cv2()
+
+    # ═══════════════════════════════════════════════════════════
+    # Page config harus dipanggil pertama kali
+    # ═══════════════════════════════════════════════════════════
+    st.set_page_config(page_title="Sistem Bantu Baca Braille", page_icon="盲", layout="wide")
+
     st.title("Sistem Bantu Baca Braille")
     st.write("Upload gambar Braille untuk diterjemahkan.")
 
@@ -141,11 +185,15 @@ def main():
         if st.button("Terjemahkan", type="primary"):
             with st.spinner("Memproses gambar..."):
                 try:
+                    # Simpan ke temporary file
                     with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
                         cv2.imwrite(tmp.name, image)
                         tmp_path = tmp.name
 
-                    classifier = load_classifier()
+                    # Bersihkan memory sebelum inference
+                    gc.collect()
+
+                    classifier = get_classifier()
                     result = classifier.recognize_braille(tmp_path)
 
                     if len(result) == 6:
@@ -155,6 +203,7 @@ def main():
                         character_result = syllable_result
                         character_cells = syllable_cells
 
+                    # Hapus temporary file
                     Path(tmp_path).unlink(missing_ok=True)
 
                     if predicted_image is None:
@@ -178,13 +227,21 @@ def main():
                         st.subheader("Naskah Suara Pembelajaran")
                         st.text_area("Pola Suku Kata", speech_text, height=200, disabled=True)
 
+                    # Bersihkan memory setelah selesai
+                    del predicted_image
+                    gc.collect()
+
                 except Exception as exc:
                     st.error(f"Proses pengenalan Braille gagal: {exc}")
+                    gc.collect()
 
     with col2:
         if uploaded_file is None:
             st.info("Upload gambar Braille di panel sebelah kiri untuk memulai.")
 
 
+# ═══════════════════════════════════════════════════════════════
+# Entry point
+# ═══════════════════════════════════════════════════════════════
 if __name__ == "__main__":
     main()

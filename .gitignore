@@ -7,9 +7,6 @@ venv/
 env/
 .venv/
 
-weights/cnn_v1.hdf5
-weights/yolov8_braille.pt
-
 *.zip
 *.rar
 *.7z

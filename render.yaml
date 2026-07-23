@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: braile-streamlit
+    runtime: image
+    repo: https://github.com/yourusername/brailer-streamlit
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: STREAMLIT_SERVER_PORT
+        value: 10000
+      - key: STREAMLIT_SERVER_ADDRESS
+        value: 0.0.0.0
+      - key: STREAMLIT_SERVER_MAX_UPLOAD_SIZE
+        value: 10
+      - key: STREAMLIT_SERVER_ENABLE_CORS
+        value: "false"
+      - key: STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION
+        value: "false"
+      - key: STREAMLIT_BROWSER_GATHER_USAGE_STATS
+        value: "false"
+    healthCheckPath: /_stcore/health
+    numInstances: 1
