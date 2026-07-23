@@ -1,0 +1,58 @@
+# ═══════════════════════════════════════════════════════════════
+# Snowflake Container Services - Service Specification
+# ═══════════════════════════════════════════════════════════════
+# Cara deploy:
+# 1. Buat compute pool:
+#    CREATE COMPUTE POOL braille_pool
+#      MIN_NODES = 1
+#      MAX_NODES = 1
+#      INSTANCE_FAMILY = CPU_X64_XS;
+#
+# 2. Buat image repository:
+#    CREATE IMAGE REPOSITORY braille_repo;
+#
+# 3. Build & push image (lihat Dockerfile.snowflake)
+#
+# 4. Deploy service:
+#    CREATE SERVICE braille_service
+#      IN COMPUTE POOL braille_pool
+#      FROM SPECIFICATION $$
+#      <paste spec ini>
+#      $$
+#      MIN_INSTANCES = 1
+#      MAX_INSTANCES = 1;
+#
+# 5. Akses:
+#    SHOW ENDPOINTS IN SERVICE braille_service;
+# ═══════════════════════════════════════════════════════════════
+
+spec:
+  containers:
+    - name: braille-app
+      image: /braille_db/app_schema/braille_repo/braille-app:latest
+      env:
+        SERVER_PORT: 8080
+        OMP_NUM_THREADS: "1"
+        MKL_NUM_THREADS: "1"
+        OPENBLAS_NUM_THREADS: "1"
+        TF_CPP_MIN_LOG_LEVEL: "3"
+        CUDA_VISIBLE_DEVICES: "-1"
+      resources:
+        requests:
+          cpu: 1.0
+          memory: 2Gi
+        limits:
+          cpu: 2.0
+          memory: 4Gi
+      endpoints:
+        - name: streamlit-ui
+          port: 8080
+          protocol: HTTP
+          public: true
+      readinessProbe:
+        httpGet:
+          path: /_stcore/health
+          port: 8080
+        initialDelaySeconds: 30
+        periodSeconds: 10
+        timeoutSeconds: 5

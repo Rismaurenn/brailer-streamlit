@@ -1,0 +1,40 @@
+# ═══════════════════════════════════════════════════════════════
+# Conda environment untuk Streamlit in Snowflake (SiS)
+# ═══════════════════════════════════════════════════════════════
+# CATATAN:
+# - Gunakan opencv DARI CONDA (bukan pip) karena conda opencv
+#   sudah include system dependencies (libGL.so.1, dll)
+# - TensorFlow dan PyTorch dari conda juga lebih stabil di SiS
+# ═══════════════════════════════════════════════════════════════
+
+name: braille_app_env
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  # Core
+  - python=3.10
+  - pip
+
+  # Streamlit
+  - streamlit>=1.28
+
+  # OpenCV - PAKAI CONDA VERSION (include libGL.so.1)
+  - opencv>=4.7
+
+  # Image processing
+  - pillow>=9.4
+  - numpy>=1.23
+
+  # TensorFlow CPU-only
+  - tensorflow>=2.11
+
+  # PyTorch CPU-only
+  - pytorch>=2.0
+  - torchvision>=0.15
+  - cpuonly
+
+  # Ultralytics YOLO
+  - pip:
+    - ultralytics>=8.0
