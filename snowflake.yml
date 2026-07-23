@@ -1,12 +1,13 @@
 # ═══════════════════════════════════════════════════════════════
 # Snowflake Native Apps - Streamlit in Snowflake (SiS)
 # ═══════════════════════════════════════════════════════════════
-# CATATAN PENTING:
-# Streamlit in Snowflake (SiS) memiliki KETERBATASAN:
-# - Tidak bisa install system packages (apt-get)
-# - opencv-python-headless membutuhkan libGL.so.1 yang TIDAK tersedia
-# - Untuk app dengan OpenCV/TensorFlow/PyTorch, gunakan
-#   Snowflake Container Services sebagai alternatif
+# PRA-SYARAT:
+# 1. Jalankan setup_script.sql terlebih dahulu untuk:
+#    - Membuat database, schema, warehouse
+#    - Setup External Access Integration (EAI) agar pip bisa
+#      download package dari PyPI
+# 2. Pastikan role kamu memiliki privilege CREATE SERVICE
+# 3. Pastikan package requirements.txt ada di root project
 # ═══════════════════════════════════════════════════════════════
 
 definition_version: 1
@@ -23,10 +24,14 @@ entities:
       streamlit:
         main_file: app.py
         title: "Terjemah Braille ke Latin"
-        warehouse: COMPUTE_WH
+        warehouse: braille_warehouse
+        external_access_integrations:
+          - pypi_eai
 
 package:
   name: braille_to_latin_package
   distribution: internal
   permissions:
     - ACCOUNT USAGE
+    - IMPORTED PRIVILEGES
+    - CREATE SERVICE ON ACCOUNT LEVEL
