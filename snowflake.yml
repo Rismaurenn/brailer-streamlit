@@ -1,37 +1,15 @@
-# ═══════════════════════════════════════════════════════════════
-# Snowflake Native Apps - Streamlit in Snowflake (SiS)
-# ═══════════════════════════════════════════════════════════════
-# PRA-SYARAT:
-# 1. Jalankan setup_script.sql terlebih dahulu untuk:
-#    - Membuat database, schema, warehouse
-#    - Setup External Access Integration (EAI) agar pip bisa
-#      download package dari PyPI
-# 2. Pastikan role kamu memiliki privilege CREATE SERVICE
-# 3. Pastikan package requirements.txt ada di root project
-# ═══════════════════════════════════════════════════════════════
-
 definition_version: 1
 
 entities:
   braille_to_latin:
     name: braille_to_latin
-    description: >
-      Sistem bantu baca Braille yang menggunakan YOLO untuk deteksi
-      dan CNN untuk klasifikasi karakter Braille.
+    description: "Sistem bantu baca Braille ke Latin"
     artifacts:
       - path: ./
     configuration:
       streamlit:
         main_file: app.py
-        title: "Terjemah Braille ke Latin"
-        warehouse: braille_warehouse
-        external_access_integrations:
-          - pypi_eai
 
 package:
   name: braille_to_latin_package
   distribution: internal
-  permissions:
-    - ACCOUNT USAGE
-    - IMPORTED PRIVILEGES
-    - CREATE SERVICE ON ACCOUNT LEVEL
