@@ -19,7 +19,13 @@ class BrailleSegmentation:
         self.conf = 0.15
         self.image_dim = (100, 150)
         self.yolo_weight = yolo_weight
-        self.yolo_model = YOLO(self.yolo_weight)
+        self._yolo_model = None
+
+    @property
+    def yolo_model(self):
+        if self._yolo_model is None:
+            self._yolo_model = YOLO(self.yolo_weight)
+        return self._yolo_model
 
     def segment_braille(self, image_path):
         image = cv2.imread(image_path)
