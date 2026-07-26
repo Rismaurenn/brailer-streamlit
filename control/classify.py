@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from pathlib import Path
 
@@ -15,6 +16,8 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array
 
 from .segmentation import BrailleSegmentation
+
+logger = logging.getLogger(__name__)
 
 
 class BrailleClassifier:
@@ -105,10 +108,36 @@ class BrailleClassifier:
         cv2.line(image, (x1, y1), (x2, y1), (255, 255, 255), 1)
         cv2.line(image, (x1, y1), (x1, y2), (255, 255, 255), 1)
 
+    @staticmethod
+    def enhance_braille_cell(cell):
+        """Preprocessing balanced sesuai skripsi Table 4.5 (alpha=1.2, beta=20).
+        
+        Pipeline:
+        1. Gaussian blur untuk noise reduction
+        2. Contrast/brightness adjustment (cv2.convertScaleAbs)
+        3. Adaptive histogram equalization (CLAHE) untuk konsistensi lighting
+        """
+        if cell is None or cell.size == 0:
+            return cell
+        # Noise reduction - Gaussian blur ringan
+        denoised = cv2.GaussianBlur(cell, (3, 3), 0)
+        # Contrast & brightness balanced (skripsi: alpha=1.2, beta=20)
+        adjusted = cv2.convertScaleAbs(denoised, alpha=1.2, beta=20)
+        # CLAHE untuk lighting consistency
+        if len(adjusted.shape) == 3:
+            lab = cv2.cvtColor(adjusted, cv2.COLOR_BGR2LAB)
+            l_channel = lab[:, :, 0]
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
+            lab[:, :, 0] = clahe.apply(l_channel)
+            adjusted = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+        return adjusted
+
     def preprocess_cells(self, cell):
         if cell is None or cell.size == 0:
             return None
-        braille_letter = PIL.Image.fromarray(cell)
+        # Apply balanced enhancement sebelum resize
+        enhanced = self.enhance_braille_cell(cell)
+        braille_letter = PIL.Image.fromarray(enhanced)
         processed_img = braille_letter.resize(self.dim)
         processed_img = img_to_array(processed_img)
         processed_img = processed_img / 255.0
@@ -373,11 +402,14 @@ class BrailleClassifier:
         image = cv2.imread(image_path)
         if image is None:
             raise ValueError(f"Gambar tidak dapat dibaca: {image_path}")
+        logger.info("Mulai pengenalan Braille: %s", image_path)
         class_labels = self.import_class_file()
         _, list_boxes = self.segmenter.segment_braille(image_path)
         if not list_boxes:
             raise RuntimeError("Tidak ada titik/karakter Braille yang terdeteksi pada gambar.")
         boxes = self.segmenter.clean_bboxes(list_boxes)
+        total_cells = sum(len(row) for row in boxes)
+        logger.info("Grid: %d baris, %d sel terdeteksi", len(boxes), total_cells)
         raw_texts = self.get_raw_texts(boxes, image, self.model, class_labels)
         grouped_boxes, grouped_labels, grouped_words, grouped_word_units = self.build_syllable_groups(boxes, raw_texts)
         raw_texts_for_grid = [row[:] for row in raw_texts]
@@ -388,5 +420,5 @@ class BrailleClassifier:
         syllable_text = self.build_display_text(grouped_words)
         syllable_cells = self.build_detected_cells(grouped_boxes, grouped_labels, image.shape)
         speech_text = self.build_speech_text(grouped_word_units)
-        final_image = image.copy()
+        final_image = self.draw_final(image.copy(), boxes, raw_texts)
         return final_image, character_text, syllable_text, speech_text, character_cells, syllable_cells
