@@ -31,7 +31,7 @@ class BrailleClassifier:
         self.json_path = json_path
         self.symbols_path = symbols_path
         self.numbers_path = numbers_path
-        self.model = load_model(model_path)
+        self.model = load_model(model_path, compile=False)
         self.vowels = {"a", "i", "u", "e", "o"}
 
     def import_class_file(self):
