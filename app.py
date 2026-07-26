@@ -868,45 +868,6 @@ def main():
                         )
                         components.html(result_html, height=900, scrolling=True)
 
-                    # ═══════════════════════════════════════════
-                    # Hasil teks (tabs sederhana di bawah)
-                    # ═══════════════════════════════════════════
-                    st.markdown("---")
-                    st.subheader("📖 Hasil Terjemahan Teks")
-
-                    tab_syllable, tab_character = st.tabs(["Suku Kata", "Huruf A-Z"])
-
-                    with tab_syllable:
-                        st.text_area(
-                            "Terjemahan per Suku Kata",
-                            syllable_result,
-                            height=150,
-                            disabled=True,
-                            key="syllable_result",
-                        )
-
-                    with tab_character:
-                        st.text_area(
-                            "Terjemahan per Huruf",
-                            character_result,
-                            height=150,
-                            disabled=True,
-                            key="character_result",
-                        )
-
-                    # ═══════════════════════════════════════════
-                    # Naskah suara
-                    # ═══════════════════════════════════════════
-                    if speech_text:
-                        st.subheader("🗣️ Naskah Pelafalan Suku Kata")
-                        st.text_area(
-                            "Pola Suku Kata",
-                            speech_text,
-                            height=150,
-                            disabled=True,
-                            key="speech_text",
-                        )
-
                     # Bersihkan memory setelah selesai
                     del predicted_image, original_b64, detected_b64
                     gc.collect()
