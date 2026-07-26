@@ -19,36 +19,32 @@ def convert_to_braille_unicode(str_input: str, path: str = "utils/braille_map.js
 
 
 def parse_xywh_and_class(boxes: torch.Tensor) -> list:
-    """Parse YOLO boxes → rows, grouped by y-coordinate.
-    
-    Optimasi dari skripsi:
-    - Pakai median height (bukan mean) untuk robustness
-    - Gunakan threshold = 60% median height (bukan 50%) untuk mengurangi
-      grid shifting pada Braille yg berdekatan vertikal
-    """
+    """Ubah hasil deteksi YOLO menjadi list baris Braille yang sudah diurutkan."""
     jumlah_box = len(boxes)
     if jumlah_box == 0:
         return []
+
     new_boxes = np.zeros((jumlah_box, 6), dtype=float)
     new_boxes[:, :4] = boxes.xywh.cpu().numpy()
     new_boxes[:, 4] = boxes.conf.cpu().numpy()
     new_boxes[:, 5] = boxes.cls.cpu().numpy()
+
+    # Urutkan dari atas ke bawah.
     new_boxes = new_boxes[new_boxes[:, 1].argsort()]
+
     if jumlah_box == 1:
         return [new_boxes]
-    # Pakai median height lebih robust terhadap outlier
-    tinggi_median = float(np.median(new_boxes[:, 3]))
-    # 60% median height - threshold lebih ketat kurangi shifting
-    y_threshold = max(tinggi_median * 0.6, 1)
+
+    # Pecah menjadi beberapa baris berdasarkan jarak koordinat y.
+    tinggi_rata_rata = np.mean(new_boxes[:, 3])
+    y_threshold = max(tinggi_rata_rata / 2, 1)
     boxes_diff = np.diff(new_boxes[:, 1])
     threshold_index = np.where(boxes_diff > y_threshold)[0]
+
     rows = np.split(new_boxes, threshold_index + 1)
     boxes_return = []
     for row in rows:
         row = row[row[:, 0].argsort()]
         boxes_return.append(row)
-    logger.info(
-        "Row grouping: %d box → %d baris (median_h=%.1f, threshold=%.1f)",
-        jumlah_box, len(boxes_return), tinggi_median, y_threshold,
-    )
+
     return boxes_return

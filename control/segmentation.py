@@ -64,7 +64,6 @@ def non_max_suppression(row, iou_threshold=0.3, min_confidence=None):
 class BrailleSegmentation:
     def __init__(self, yolo_weight="weights/yolov8_braille.pt"):
         self.conf = 0.15
-        self.iou_threshold = 0.3        # NMS threshold untuk hapus duplikat
         self.image_dim = (100, 150)
         self.yolo_weight = yolo_weight
         self._yolo_model = None
@@ -76,25 +75,22 @@ class BrailleSegmentation:
         return self._yolo_model
 
     def segment_braille(self, image_path):
+        """Segmentasi sel Braille dari gambar."""
         image = cv2.imread(image_path)
         if image is None:
             raise ValueError(f"Gambar tidak dapat dibaca: {image_path}")
         results = self.yolo_model.predict(image, conf=self.conf, max_det=9999)
         boxes = results[0].boxes
         list_boxes = parse_xywh_and_class(boxes)
-        logger.info("YOLO deteksi: %d box sebelum NMS", sum(len(r) for r in list_boxes))
         return results, list_boxes
 
-    @staticmethod
-    def get_distance(xs):
-        """Distance estimation pakai median, lebih robust drpd Counter."""
+    def get_distance(self, xs):
+        """Hitung jarak horizontal antar kotak dalam satu baris."""
+        from collections import Counter
         if len(xs) < 2:
             return np.array([]), 0
-        xs_sorted = np.sort(np.array(xs, dtype=float))
-        distances = np.diff(xs_sorted)
-        if len(distances) == 0:
-            return np.array([]), 0
-        common_distance = float(np.median(distances))
+        distances = np.diff(xs)
+        common_distance = Counter(distances).most_common(1)[0][0]
         return distances, common_distance
 
     def get_box_properties(self, row):
@@ -104,59 +100,21 @@ class BrailleSegmentation:
         return xs, classes, distances, common
 
     def clean_bboxes(self, boxes):
-        """Improved cleaning: NMS + size filter + overlap removal."""
+        """Hilangkan bounding box yang tumpang tindih."""
         cleaned_boxes = []
-        for row_idx, row in enumerate(boxes):
-            if len(row) == 0:
-                continue
-            # Step 1: NMS - hapus duplikat overlap tinggi
-            row = non_max_suppression(row, iou_threshold=self.iou_threshold)
+        for row in boxes:
             if len(row) <= 1:
                 cleaned_boxes.append(row)
                 continue
-
-            # Step 2: Ukuran filter - hapus box terlalu kecil/besar
-            median_w = np.median(row[:, 2])
-            median_h = np.median(row[:, 3])
-            valid = []
-            for box in row:
-                w, h = box[2], box[3]
-                # Tolak jika <25% atau >250% ukuran median
-                if w < median_w * 0.25 or w > median_w * 2.5:
-                    continue
-                if h < median_h * 0.25 or h > median_h * 2.5:
-                    continue
-                valid.append(box)
-            if not valid:
-                cleaned_boxes.append(row)
-                continue
-            row = np.array(valid)
-            if len(row) <= 1:
-                cleaned_boxes.append(row)
-                continue
-
-            # Step 3: Jarak filter - hapus box terlalu berdekatan
             xs, _, distances, common = self.get_box_properties(row)
             if common == 0:
                 cleaned_boxes.append(row)
                 continue
-            # common yg valid: minimal seperempat median size
-            min_valid_dist = max(common * 0.4, median_w * 0.3)
-            delete_indices = set()
+            delete_indices = []
             for j in range(1, len(xs)):
-                if j in delete_indices:
-                    continue
-                if distances[j - 1] < min_valid_dist:
-                    # Pilih box dgn confidence lebih tinggi
-                    prev_conf = row[j - 1][4] if row.shape[1] > 4 else 0.5
-                    curr_conf = row[j][4] if row.shape[1] > 4 else 0.5
-                    if prev_conf >= curr_conf:
-                        delete_indices.add(j)
-                    else:
-                        delete_indices.add(j - 1)
+                if distances[j - 1] < common / 2:
+                    delete_indices.append(j - 1)
             if delete_indices:
-                row = np.delete(row, sorted(delete_indices), axis=0)
+                row = np.delete(row, delete_indices, axis=0)
             cleaned_boxes.append(row)
-        total_after = sum(len(r) for r in cleaned_boxes)
-        logger.info("Box setelah clean: %d", total_after)
         return cleaned_boxes

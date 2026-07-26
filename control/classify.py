@@ -34,7 +34,7 @@ class BrailleClassifier:
         self.json_path = json_path
         self.symbols_path = symbols_path
         self.numbers_path = numbers_path
-        self.model = load_model(model_path, compile=False)
+        self.model = load_model(model_path)
         self.vowels = {"a", "i", "u", "e", "o"}
 
     def import_class_file(self):
@@ -108,36 +108,10 @@ class BrailleClassifier:
         cv2.line(image, (x1, y1), (x2, y1), (255, 255, 255), 1)
         cv2.line(image, (x1, y1), (x1, y2), (255, 255, 255), 1)
 
-    @staticmethod
-    def enhance_braille_cell(cell):
-        """Preprocessing balanced sesuai skripsi Table 4.5 (alpha=1.2, beta=20).
-        
-        Pipeline:
-        1. Gaussian blur untuk noise reduction
-        2. Contrast/brightness adjustment (cv2.convertScaleAbs)
-        3. Adaptive histogram equalization (CLAHE) untuk konsistensi lighting
-        """
-        if cell is None or cell.size == 0:
-            return cell
-        # Noise reduction - Gaussian blur ringan
-        denoised = cv2.GaussianBlur(cell, (3, 3), 0)
-        # Contrast & brightness balanced (skripsi: alpha=1.2, beta=20)
-        adjusted = cv2.convertScaleAbs(denoised, alpha=1.2, beta=20)
-        # CLAHE untuk lighting consistency
-        if len(adjusted.shape) == 3:
-            lab = cv2.cvtColor(adjusted, cv2.COLOR_BGR2LAB)
-            l_channel = lab[:, :, 0]
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
-            lab[:, :, 0] = clahe.apply(l_channel)
-            adjusted = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
-        return adjusted
-
     def preprocess_cells(self, cell):
         if cell is None or cell.size == 0:
             return None
-        # Apply balanced enhancement sebelum resize
-        enhanced = self.enhance_braille_cell(cell)
-        braille_letter = PIL.Image.fromarray(enhanced)
+        braille_letter = PIL.Image.fromarray(cell)
         processed_img = braille_letter.resize(self.dim)
         processed_img = img_to_array(processed_img)
         processed_img = processed_img / 255.0

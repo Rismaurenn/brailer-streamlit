@@ -80,14 +80,16 @@ def four_point_transform(image, points):
 
 
 def auto_straighten_document(image):
-    """Auto-straightening: contour detection + Hough line fallback."""
+    """Mencari empat sudut kertas lalu melakukan koreksi perspektif."""
     cv2 = _lazy_import_cv2()
     if image is None or image.size == 0:
         return image
+
     original = image.copy()
     height, width = image.shape[:2]
     max_side = max(height, width)
     scale = 900.0 / max_side if max_side > 900 else 1.0
+
     if scale != 1.0:
         resized = cv2.resize(image, (int(width * scale), int(height * scale)), interpolation=cv2.INTER_AREA)
     else:
@@ -99,51 +101,54 @@ def auto_straighten_document(image):
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
     edges = cv2.dilate(edges, kernel, iterations=1)
     edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=2)
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return original
+
+    image_area = resized.shape[0] * resized.shape[1]
     best_quad = None
     best_area = 0
 
-    if contours:
-        image_area = resized.shape[0] * resized.shape[1]
-        for contour in sorted(contours, key=cv2.contourArea, reverse=True)[:15]:
-            area = cv2.contourArea(contour)
-            if area < image_area * 0.06:
-                continue
-            perimeter = cv2.arcLength(contour, True)
-            approx = cv2.approxPolyDP(contour, 0.025 * perimeter, True)
-            if len(approx) == 4:
-                quad = approx.reshape(4, 2).astype("float32")
-            else:
-                rect = cv2.minAreaRect(contour)
-                quad = cv2.boxPoints(rect).astype("float32")
-            x, y, w, h = cv2.boundingRect(quad.astype("int32"))
-            if w < resized.shape[1] * 0.2 or h < resized.shape[0] * 0.2:
-                continue
-            aspect_ratio = max(w / max(h, 1), h / max(w, 1))
-            if aspect_ratio > 6.0:
-                continue
-            if area > best_area:
-                best_area = area
-                best_quad = quad
+    for contour in sorted(contours, key=cv2.contourArea, reverse=True)[:12]:
+        area = cv2.contourArea(contour)
+        if area < image_area * 0.08:
+            continue
 
-    # Fallback: Hough Lines
-    if best_quad is None:
-        lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=100, minLineLength=80, maxLineGap=10)
-        if lines is not None and len(lines) >= 4:
-            best_quad = _hough_to_quad(lines, resized.shape)
+        perimeter = cv2.arcLength(contour, True)
+        approx = cv2.approxPolyDP(contour, 0.025 * perimeter, True)
+
+        if len(approx) == 4:
+            quad = approx.reshape(4, 2).astype("float32")
+        else:
+            rect = cv2.minAreaRect(contour)
+            quad = cv2.boxPoints(rect).astype("float32")
+
+        x, y, w, h = cv2.boundingRect(quad.astype("int32"))
+        if w < resized.shape[1] * 0.25 or h < resized.shape[0] * 0.25:
+            continue
+
+        aspect_ratio = max(w / max(h, 1), h / max(w, 1))
+        if aspect_ratio > 5.0:
+            continue
+
+        if area > best_area:
+            best_area = area
+            best_quad = quad
 
     if best_quad is None:
-        logger.info("Auto-straightening: tidak ada kandidat ditemukan, gunakan gambar asli")
         return original
 
     if scale != 1.0:
         best_quad = best_quad / scale
+
     corrected = four_point_transform(original, best_quad)
+
     corrected_area = corrected.shape[0] * corrected.shape[1]
     original_area = original.shape[0] * original.shape[1]
-    if corrected_area < original_area * 0.10:
+    if corrected_area < original_area * 0.12:
         return original
+
     logger.info("Auto-straightening: koreksi perspektif diterapkan")
     return corrected
 
